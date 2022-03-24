@@ -19,7 +19,7 @@ def speak(label):
 		engine.say("Mask Detected. Please Move forward and check your Temperature. Thankyou")
 		print("Mask detected")
 	else:
-		engine.say("No Mask Detected. Please Wear Mask")
+		engine.say("No Mask Detected. Please Wear a Mask")
 		print("No Mask")
 	engine.runAndWait()
 	time.sleep(5)
