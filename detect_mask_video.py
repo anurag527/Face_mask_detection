@@ -8,21 +8,48 @@ import imutils
 import time
 import cv2
 import os
-import pyttsx3 as pyspeak
+#from gtts import gTTS
+import subprocess
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import db
 
+#firebase initialization and db connection
+cred = credentials.Certificate("smartdoor-da7d1-firebase-adminsdk-38zm2-b1b2c0300c.json")
+default_app = firebase_admin.initialize_app(cred, {
+	'databaseURL': "https://smartdoor-da7d1-default-rtdb.firebaseio.com/"
+	})
+ref = db.reference("/")
+
+
+
+#speak file saving
+'''
+def speakFile():
+	mytext = 'No Mask Detected. Please Wear a Mask'
+	language = 'en'
+	myobj = gTTS(text=mytext, lang=language, slow=False)
+	myobj.save("nomask.mp3")
+	mytext = 'Mask Detected. Please Move forward and check your Temperature. Thankyou!'
+	myobj = gTTS(text=mytext, lang=language, slow=False)
+	myobj.save("mask.mp3")
+'''
 
 #Speak Function
 def speak(label):
-	engine=pyspeak.init()
-	engine.setProperty('volume',1)
 	if(label=="Mask"):
-		engine.say("Mask Detected. Please Move forward and check your Temperature. Thankyou")
+		subprocess.call(["afplay", "mask.mp3"])
 		print("Mask detected")
 	else:
-		engine.say("No Mask Detected. Please Wear a Mask")
+		subprocess.call(["afplay", "nomask.mp3"])
 		print("No Mask")
-	engine.runAndWait()
-	time.sleep(5)
+
+#send data to firebase
+def sendToFirebase(label):
+	if(label=="Mask"):
+		ref.set({"test":1})
+	else:
+		ref.set({"test":0})
 
 
 def detect_and_predict_mask(frame, faceNet, maskNet):
@@ -35,7 +62,7 @@ def detect_and_predict_mask(frame, faceNet, maskNet):
 	# pass the blob through the network and obtain the face detections
 	faceNet.setInput(blob)
 	detections = faceNet.forward()
-	print(detections.shape)
+	#print(detections.shape)
 
 	# initialize our list of faces, their corresponding locations,
 	# and the list of predictions from our face mask network
@@ -88,8 +115,8 @@ def detect_and_predict_mask(frame, faceNet, maskNet):
 	return (locs, preds)
 
 # load our serialized face detector model from disk
-prototxtPath = r"face_detector\deploy.prototxt"
-weightsPath = r"face_detector\res10_300x300_ssd_iter_140000.caffemodel"
+prototxtPath = r"face_detector/deploy.prototxt"
+weightsPath = r"face_detector/res10_300x300_ssd_iter_140000.caffemodel"
 faceNet = cv2.dnn.readNet(prototxtPath, weightsPath)
 
 # load the face mask detector model from disk
@@ -97,8 +124,11 @@ maskNet = load_model("mask_detector.model")
 
 # initialize the video stream
 print("[INFO] starting video stream...")
-#vs = VideoStream('http://192.168.1.159:8080/video').start()
-vs = VideoStream(src=0).start()
+vs = VideoStream('http://192.168.205.199:8080/video').start()
+#vs = VideoStream(src=0).start()
+
+#save speak file - run for the first time only
+#speakFile()
 
 # loop over the frames from the video stream
 while True:
@@ -106,7 +136,6 @@ while True:
 	# to have a maximum width of 400 pixels
 	frame = vs.read()
 	frame = imutils.resize(frame, width=400)
-
 	# detect faces in the frame and determine if they are wearing a
 	# face mask or not
 	(locs, preds) = detect_and_predict_mask(frame, faceNet, maskNet)
@@ -121,7 +150,20 @@ while True:
 		# determine the class label and color we'll use to draw
 		# the bounding box and text
 		label = "Mask" if mask > withoutMask else "No Mask"
-		speak(label)
+
+		#for speaking
+		#speak(label)
+		if(label=="Mask"):
+			print("Mask Detected. Please Move forward and check your Temperature. Thankyou!")
+		else:
+			print("No Mask Detected. Please Wear a Mask")
+		
+		#firebase
+		sendToFirebase(label)
+		
+		#wait time
+		time.sleep(3)
+
 		color = (0, 255, 0) if label == "Mask" else (0, 0, 255)
 
 		# include the probability in the label
